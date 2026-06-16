@@ -78,6 +78,16 @@ CLEAN_ALLOWED_ATTRS = {
     "img": {"src", "alt", "title"},
 }
 
+# Header HTTP usati per le richieste alle pagine e alle immagini.
+DEFAULT_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/125.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+}
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Importa post RSS come Markdown.")
@@ -281,7 +291,7 @@ def ensure_unique_file(parent: Path, filename: str) -> Path:
 
 def fetch_html(url: str) -> str:
     """Scarica la pagina HTML."""
-    response = requests.get(url, timeout=30)
+    response = requests.get(url, headers=DEFAULT_HEADERS, timeout=30)
     response.raise_for_status()
     return response.text
 
@@ -437,7 +447,7 @@ def download_image(url: str, post_url: str) -> tuple[bytes, str | None]:
         return data, mime
 
     absolute_url = urljoin(post_url, url)
-    response = requests.get(absolute_url, timeout=30)
+    response = requests.get(absolute_url, headers=DEFAULT_HEADERS, timeout=30)
     response.raise_for_status()
     return response.content, response.headers.get("Content-Type")
 
@@ -540,9 +550,6 @@ def process_feed(
     logger: logging.Logger,
 ) -> int:
     """Elabora un feed RSS e restituisce il numero di post importati."""
-    logger.info("=" * 60)
-    logger.info("Controllo feed: %s", feed_config.name)
-
     feed = feedparser.parse(feed_config.url)
     if feed.bozo and feed.get("status", 200) not in (200, 301, 302):
         logger.error("  Errore parsing feed %s: %s", feed_config.url, feed.get("bozo_exception"))
@@ -571,14 +578,19 @@ def process_feed(
 
         to_import.append((entry, post_date))
 
-    from_date_part = f" | saltati per from_date: {skipped_by_date}" if feed_config.from_date else ""
-    logger.info(
-        "  Post rilevati: %d | da importare: %d | già importati: %d%s",
-        len(entries),
-        len(to_import),
-        already_imported,
-        from_date_part,
-    )
+    n_found = len(entries)
+    n_to_import = len(to_import)
+    n_skipped = already_imported + skipped_by_date
+    limit_str = feed_config.from_date.strftime("%Y-%m-%d") if feed_config.from_date else "none"
+
+    feed_output_dir = output_root / feed_config.output_subdir
+
+    print("──────────────────────────────────────────────────────")
+    print(f"Source: {feed_config.name}")
+    print(f"Output: {feed_output_dir}")
+    print(f"Max results or limit date: {limit_str}")
+    print("──────────────────────────────────────────────────────")
+    print(f"Results: {n_found} found | {n_to_import} to import | {n_skipped} skipped")
 
     imported = 0
     for entry, post_date in to_import:
@@ -599,7 +611,6 @@ def process_feed(
             title = entry.get("title", "").strip() or "Untitled"
             logger.error("  Errore importando '%s': %s", title, exc)
 
-    logger.info("  Importati in questo giro: %d", imported)
     return imported
 
 
