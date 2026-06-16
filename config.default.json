@@ -1,0 +1,16 @@
+{
+  "output_dir": "./posts",
+  "feeds": [
+    {
+      "name": "aaabbb",
+      "url": "https://...",
+      "from_date": "2025-01-01"
+    },
+    {
+      "name": "bbbccc",
+      "url": "http://...",
+      "output_subdir": "bbbccc",
+      "from_date": "2025-06-01"
+    }
+  ]
+}
